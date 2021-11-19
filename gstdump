@@ -1,10 +1,17 @@
 #!/usr/bin/env python3
 
+import argparse
 import os
 import time
 import shutil
 import subprocess
 import sys
+
+parser = argparse.ArgumentParser(description='GStreamer development environment.')
+parser.add_argument('--va', action='store_true', help='Use GstVA')
+parser.add_argument('--no-vaapi', action='store_true', help='Disable GStreamer-VAAPI')
+parser.add_argument('--no-vpp', action='store_false', help='Disable GstVA vpp filter in playbin', default=False)
+args, cmd = parser.parse_known_args()
 
 mkdump_path = os.path.expanduser("~/.cache/gstmkdump")
 shutil.rmtree(mkdump_path, ignore_errors=True)
@@ -13,8 +20,20 @@ os.makedirs(mkdump_path)
 print(f"Dumping GStreamer pipelines into {mkdump_path}")
 os.environ["GST_DEBUG_DUMP_DOT_DIR"] = mkdump_path
 
+if args.va or args.no_vaapi:
+    vaapidecs = map(lambda x: "{}:NONE".format(x), {"vaapidecodebin", "vaapih264dec", "vaapih265dec", "vaapimpeg2dec", "vaapivp8dec", "vaapivp9dec"})
+    if args.va:
+        vadecs = map(lambda x: "{}:MAX".format(x), {"vah264dec", "vah265dec", "vampeg2dec", "vavp8dec", "vavp9dec"})
+        if not args.no_vpp:
+            os.environ["USE_VA"] = '1'
+    else:
+        vadecs = ''
+        if not args.no_vpp:
+            os.environ["GST_VAAPI_DISABLE_VPP"] = '1'
+    os.environ["GST_PLUGIN_FEATURE_RANK"] = ','.join([','.join(vaapidecs), ','.join(vadecs)])
+
 try:
-    subprocess.check_call(sys.argv[1:])
+    subprocess.check_call(cmd)
 except:
     time.sleep(1.0)
 
